@@ -2,27 +2,26 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Side-Scrolling Mario Style Game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simple Side-Scrolling Mario Game</title>
 <style>
   html, body {
-    margin:0; padding:0; background:#5c94fc; height:100%;
-    overflow:hidden;
+    margin: 0; padding: 0; overflow: hidden; background: #5c94fc; font-family: Arial, sans-serif;
     user-select:none;
-    font-family: Arial, sans-serif;
   }
   #game {
     position: relative;
-    width: 1000px;  /* viewport width */
+    width: 1000px;
     height: 400px;
     margin: 20px auto;
-    border: 2px solid black;
+    border: 3px solid black;
     background: #5c94fc;
     overflow: hidden;
   }
   #viewport {
     position: absolute;
     top: 0; left: 0; height: 100%;
-    width: 100000px; /* very wide container */
+    width: 100000px;
     will-change: transform;
   }
   #player {
@@ -113,9 +112,8 @@
   let score = 0;
   let gameOver = false;
 
-  // Levels definition
   const levels = [
-    { // Level 1
+    {
       platforms: [
         { x: 0, y: 350, widthBlocks: 60 },
         { x: 10, y: 280, widthBlocks: 5 },
@@ -135,7 +133,7 @@
         { xStart: 35 * blockSize, xEnd: 39 * blockSize, y: 320, speed: 3 }
       ]
     },
-    { // Level 2
+    {
       platforms: [
         { x: 0, y: 350, widthBlocks: 60 },
         { x: 5, y: 310, widthBlocks: 6 },
@@ -156,7 +154,7 @@
         { xStart: 45 * blockSize, xEnd: 49 * blockSize, y: 310, speed: 3 }
       ]
     },
-    { // Level 3
+    {
       platforms: [
         { x: 0, y: 350, widthBlocks: 60 },
         { x: 8, y: 320, widthBlocks: 5 },
@@ -225,4 +223,119 @@
   }
 
   function createCoins(levelCoins) {
-    coinElements.for
+    coinElements.forEach(el => viewport.removeChild(el));
+    coinElements = [];
+    coins = [];
+
+    for (let c of levelCoins) {
+      const coin = document.createElement('div');
+      coin.className = 'coin';
+      coin.style.left = c.x + 'px';
+      coin.style.top = c.y + 'px';
+      viewport.appendChild(coin);
+      coinElements.push(coin);
+      coins.push({ x: c.x, y: c.y, width: 30, height: 30, collected: false });
+    }
+  }
+
+  function createEnemies(levelEnemies) {
+    enemyElements.forEach(el => viewport.removeChild(el));
+    enemyElements = [];
+    enemies = [];
+
+    for (let e of levelEnemies) {
+      const enemy = document.createElement('div');
+      enemy.className = 'enemy';
+      enemy.style.left = e.xStart + 'px';
+      enemy.style.top = e.y + 'px';
+      viewport.appendChild(enemy);
+      enemyElements.push(enemy);
+      enemies.push({
+        x: e.xStart,
+        y: e.y,
+        width: 40,
+        height: 40,
+        speed: e.speed,
+        xStart: e.xStart,
+        xEnd: e.xEnd,
+        direction: 1
+      });
+    }
+  }
+
+  function rectsOverlap(r1, r2) {
+    return !(r2.x > r1.x + r1.width ||
+             r2.x + r2.width < r1.x ||
+             r2.y > r1.y + r1.height ||
+             r2.y + r2.height < r1.y);
+  }
+
+  function resetLevel() {
+    const level = levels[currentLevel];
+    createPlatforms(level.platforms);
+    createCoins(level.coins);
+    createEnemies(level.enemies);
+
+    playerState.x = 100;
+    playerState.y = 0;
+    playerState.velX = 0;
+    playerState.velY = 0;
+    playerState.onGround = false;
+
+    viewport.style.transform = `translateX(0px)`;
+    score = 0;
+    gameOver = false;
+    message.style.display = 'none';
+
+    updateHUD();
+  }
+
+  function updateHUD() {
+    hud.textContent = `Level: ${currentLevel + 1} | Score: ${score}`;
+  }
+
+  function update() {
+    if (gameOver) return;
+
+    // Apply gravity
+    playerState.velY += gravity;
+    playerState.y += playerState.velY;
+
+    // Horizontal movement
+    if (keys['ArrowLeft'] || keys['a']) {
+      playerState.velX = -moveSpeed;
+    } else if (keys['ArrowRight'] || keys['d']) {
+      playerState.velX = moveSpeed;
+    } else {
+      playerState.velX = 0;
+    }
+    playerState.x += playerState.velX;
+
+    // Collision with platforms (vertical)
+    playerState.onGround = false;
+    for (let plat of platformRects) {
+      // Check vertical collision only if player is falling or moving up
+      if (
+        playerState.x + playerState.width > plat.x &&
+        playerState.x < plat.x + plat.width
+      ) {
+        // falling down collision
+        if (
+          playerState.y + playerState.height > plat.y &&
+          playerState.y + playerState.height - playerState.velY <= plat.y
+        ) {
+          playerState.y = plat.y - playerState.height;
+          playerState.velY = 0;
+          playerState.onGround = true;
+        }
+      }
+    }
+
+    // Prevent player from falling below ground (bottom of game)
+    if (playerState.y + playerState.height > game.clientHeight) {
+      playerState.y = game.clientHeight - playerState.height;
+      playerState.velY = 0;
+      playerState.onGround = true;
+    }
+
+    // Prevent player from going left beyond 
