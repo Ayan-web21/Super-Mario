@@ -2,33 +2,37 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Mini Mario Game with Coins, Enemies & Long Levels</title>
+<title>Side-Scrolling Mario Style Game</title>
 <style>
   html, body {
-    margin: 0; padding: 0; overflow: hidden; background: #5c94fc;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    user-select: none;
+    margin:0; padding:0; background:#5c94fc; height:100%;
+    overflow:hidden;
+    user-select:none;
+    font-family: Arial, sans-serif;
   }
   #game {
-    background: #5c94fc;
     position: relative;
-    width: 1000px; /* viewport width */
+    width: 1000px;  /* viewport width */
     height: 400px;
-    border: 2px solid #000;
+    margin: 20px auto;
+    border: 2px solid black;
+    background: #5c94fc;
     overflow: hidden;
-    font-family: Arial, sans-serif;
+  }
+  #viewport {
+    position: absolute;
+    top: 0; left: 0; height: 100%;
+    width: 100000px; /* very wide container */
+    will-change: transform;
   }
   #player {
     position: absolute;
     width: 40px;
     height: 60px;
+    bottom: 0;
     background: url('https://i.imgur.com/4Pm6nXh.png') no-repeat center bottom;
     background-size: contain;
     image-rendering: pixelated;
-    transform: rotate(0deg);
     z-index: 20;
   }
   .platform {
@@ -84,16 +88,17 @@
 </style>
 </head>
 <body>
-
-<div id="game">
-  <div id="hud">Level: 1 | Score: 0</div>
-  <div id="message">Game Over! Press R to Restart</div>
-  <div id="player"></div>
-</div>
+  <div id="game">
+    <div id="hud">Level: 1 | Score: 0</div>
+    <div id="message">Game Over! Press R to Restart</div>
+    <div id="viewport"></div>
+    <div id="player"></div>
+  </div>
 
 <script>
 (() => {
   const game = document.getElementById('game');
+  const viewport = document.getElementById('viewport');
   const player = document.getElementById('player');
   const hud = document.getElementById('hud');
   const message = document.getElementById('message');
@@ -108,11 +113,7 @@
   let score = 0;
   let gameOver = false;
 
-  // Levels longer: 60 blocks wide.
-  // Platforms: x,y,widthBlocks
-  // Coins: placed on platforms
-  // Enemies: patrol platform between two ends
-
+  // Levels definition
   const levels = [
     { // Level 1
       platforms: [
@@ -200,7 +201,7 @@
   let enemies = [];
 
   function createPlatforms(levelPlatforms) {
-    platformElements.forEach(el => game.removeChild(el));
+    platformElements.forEach(el => viewport.removeChild(el));
     platformElements = [];
     platformRects = [];
 
@@ -210,7 +211,7 @@
         block.className = 'platform';
         block.style.left = (plat.x * blockSize + i * blockSize) + 'px';
         block.style.top = plat.y + 'px';
-        game.appendChild(block);
+        viewport.appendChild(block);
         platformElements.push(block);
 
         platformRects.push({
@@ -224,178 +225,4 @@
   }
 
   function createCoins(levelCoins) {
-    coinElements.forEach(el => game.removeChild(el));
-    coinElements = [];
-    coins = [];
-
-    for (let c of levelCoins) {
-      const coin = document.createElement('div');
-      coin.className = 'coin';
-      coin.style.left = c.x + 'px';
-      coin.style.top = c.y + 'px';
-      game.appendChild(coin);
-      coinElements.push(coin);
-      coins.push({
-        x: c.x,
-        y: c.y,
-        width: 30,
-        height: 30,
-        collected: false
-      });
-    }
-  }
-
-  function createEnemies(levelEnemies) {
-    enemyElements.forEach(el => game.removeChild(el));
-    enemyElements = [];
-    enemies = [];
-
-    for (let e of levelEnemies) {
-      const enemy = document.createElement('div');
-      enemy.className = 'enemy';
-      enemy.style.left = e.xStart + 'px';
-      enemy.style.top = e.y + 'px';
-      game.appendChild(enemy);
-      enemyElements.push(enemy);
-      enemies.push({
-        xStart: e.xStart,
-        xEnd: e.xEnd,
-        y: e.y,
-        x: e.xStart,
-        width: 40,
-        height: 40,
-        speed: e.speed,
-        direction: 1 // 1 = right, -1 = left
-      });
-    }
-  }
-
-  function isColliding(rect1, rect2) {
-    return !(rect1.x + rect1.width <= rect2.x ||
-             rect1.x >= rect2.x + rect2.width ||
-             rect1.y + rect1.height <= rect2.y ||
-             rect1.y >= rect2.y + rect2.height);
-  }
-
-  function update() {
-    if (gameOver) return;
-
-    if (keys['ArrowLeft'] || keys['a']) {
-      playerState.velX = -moveSpeed;
-    } else if (keys['ArrowRight'] || keys['d']) {
-      playerState.velX = moveSpeed;
-    } else {
-      playerState.velX = 0;
-    }
-
-    if ((keys['ArrowUp'] || keys['w'] || keys[' ']) && playerState.onGround) {
-      playerState.velY = -jumpStrength;
-      playerState.onGround = false;
-    }
-
-    playerState.velY += gravity;
-
-    playerState.x += playerState.velX;
-    playerState.y += playerState.velY;
-
-    // Boundaries horizontally
-    if (playerState.x < 0) playerState.x = 0;
-    if (playerState.x + playerState.width > levelWidthPx) playerState.x = levelWidthPx - playerState.width;
-
-    playerState.onGround = false;
-
-    // Platform collision
-    for (let plat of platformRects) {
-      let playerRect = {
-        x: playerState.x,
-        y: playerState.y,
-        width: playerState.width,
-        height: playerState.height
-      };
-
-      if (isColliding(playerRect, plat)) {
-        if (playerState.velY > 0 && (playerState.y + playerState.height) <= (plat.y + playerState.velY)) {
-          playerState.y = plat.y - playerState.height;
-          playerState.velY = 0;
-          playerState.onGround = true;
-        } else if (playerState.velY < 0 && playerState.y >= plat.y + plat.height) {
-          playerState.y = plat.y + plat.height;
-          playerState.velY = 0;
-        } else {
-          if (playerState.velX > 0) {
-            playerState.x = plat.x - playerState.width;
-          } else if (playerState.velX < 0) {
-            playerState.x = plat.x + plat.width;
-          }
-          playerState.velX = 0;
-        }
-      }
-    }
-
-    // Ground limit bottom
-    if (playerState.y + playerState.height > game.clientHeight) {
-      playerState.y = game.clientHeight - playerState.height;
-      playerState.velY = 0;
-      playerState.onGround = true;
-    }
-
-    // Collect coins
-    coins.forEach((coin, i) => {
-      if (!coin.collected) {
-        if (isColliding({
-          x: playerState.x,
-          y: playerState.y,
-          width: playerState.width,
-          height: playerState.height
-        }, coin)) {
-          coin.collected = true;
-          coinElements[i].style.display = 'none';
-          score++;
-          hud.textContent = `Level: ${currentLevel + 1} | Score: ${score}`;
-        }
-      }
-    });
-
-    // Enemy movement and collision
-    for (let i = 0; i < enemies.length; i++) {
-      let enemy = enemies[i];
-      enemy.x += enemy.speed * enemy.direction;
-
-      if (enemy.x > enemy.xEnd) {
-        enemy.x = enemy.xEnd;
-        enemy.direction = -1;
-      }
-      if (enemy.x < enemy.xStart) {
-        enemy.x = enemy.xStart;
-        enemy.direction = 1;
-      }
-
-      enemyElements[i].style.left = enemy.x + 'px';
-
-      if (isColliding({
-        x: playerState.x,
-        y: playerState.y,
-        width: playerState.width,
-        height: playerState.height
-      }, enemy)) {
-        gameOver = true;
-        message.style.display = 'block';
-      }
-    }
-
-    // Check level end (reach right edge)
-    if (!gameOver && playerState.x >= levelWidthPx - playerState.width) {
-      currentLevel++;
-      if (currentLevel >= levels.length) currentLevel = 0;
-      loadLevel(currentLevel);
-    }
-  }
-
-  function gameLoop() {
-    update();
-
-    // Camera scrolling - keep player roughly centered horizontally
-    const camX = Math.min(Math.max(playerState.x - game.clientWidth / 2 + playerState.width / 2, 0), levelWidthPx - game.clientWidth);
-
-    platformElements.forEach((block, i) => {
-      block.style.left = (platformRects
+    coinElements.for
