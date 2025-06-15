@@ -2,15 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Mini Mario Platformer</title>
+<title>Mini Mario Multi-Level</title>
 <style>
   html, body {
-    margin:0; padding:0; overflow: hidden; background: #5c94fc;
+    margin: 0; padding: 0; overflow: hidden; background: #5c94fc;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
   #game {
     background: #5c94fc;
-    display: block;
-    margin: 0 auto;
     position: relative;
     width: 800px;
     height: 400px;
@@ -22,35 +24,70 @@
     width: 40px;
     height: 60px;
     background: red;
-    bottom: 0;
-    left: 100px;
     border-radius: 8px;
   }
   .platform {
     position: absolute;
     background: #654321;
     height: 20px;
+    border-radius: 4px;
+  }
+  #levelIndicator {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    color: white;
+    font-family: Arial, sans-serif;
+    font-size: 18px;
+    text-shadow: 1px 1px 2px black;
+    user-select: none;
   }
 </style>
 </head>
 <body>
 
 <div id="game">
+  <div id="levelIndicator">Level: 1 (Press 1,2,3 to switch)</div>
   <div id="player"></div>
-  <div class="platform" style="width: 800px; bottom: 0; left: 0;"></div>
-  <div class="platform" style="width: 150px; bottom: 100px; left: 300px;"></div>
-  <div class="platform" style="width: 100px; bottom: 200px; left: 500px;"></div>
 </div>
 
 <script>
 (() => {
   const game = document.getElementById('game');
   const player = document.getElementById('player');
+  const levelIndicator = document.getElementById('levelIndicator');
+
   const gravity = 0.6;
   const jumpStrength = 15;
   const moveSpeed = 5;
 
   let keys = {};
+  let currentLevel = 0;
+
+  const levels = [
+    // Level 1
+    [
+      { x: 0, y: 380, width: 800, height: 20 },     // ground
+      { x: 300, y: 300, width: 150, height: 20 },
+      { x: 500, y: 200, width: 100, height: 20 }
+    ],
+    // Level 2
+    [
+      { x: 0, y: 380, width: 800, height: 20 },     // ground
+      { x: 100, y: 320, width: 100, height: 20 },
+      { x: 300, y: 260, width: 200, height: 20 },
+      { x: 600, y: 300, width: 150, height: 20 }
+    ],
+    // Level 3
+    [
+      { x: 0, y: 380, width: 800, height: 20 },     // ground
+      { x: 150, y: 350, width: 100, height: 20 },
+      { x: 350, y: 300, width: 120, height: 20 },
+      { x: 550, y: 250, width: 80, height: 20 },
+      { x: 700, y: 200, width: 60, height: 20 }
+    ],
+  ];
+
   let playerState = {
     x: 100,
     y: 0,
@@ -61,12 +98,25 @@
     onGround: false
   };
 
-  const platforms = [...document.getElementsByClassName('platform')].map(el => ({
-    x: el.offsetLeft,
-    y: game.clientHeight - el.offsetTop - el.offsetHeight,
-    width: el.offsetWidth,
-    height: el.offsetHeight
-  }));
+  let platformElements = [];
+
+  function createPlatforms(levelPlatforms) {
+    // Remove old platforms
+    platformElements.forEach(el => game.removeChild(el));
+    platformElements = [];
+
+    // Add new platforms
+    for (let plat of levelPlatforms) {
+      const el = document.createElement('div');
+      el.className = 'platform';
+      el.style.left = plat.x + 'px';
+      el.style.top = plat.y + 'px';
+      el.style.width = plat.width + 'px';
+      el.style.height = plat.height + 'px';
+      game.appendChild(el);
+      platformElements.push(el);
+    }
+  }
 
   function isColliding(rect1, rect2) {
     return !(rect1.x + rect1.width < rect2.x ||
@@ -102,11 +152,10 @@
     if (playerState.x < 0) playerState.x = 0;
     if (playerState.x + playerState.width > game.clientWidth) playerState.x = game.clientWidth - playerState.width;
 
-    // Floor collision
+    // Reset onGround and check platform collisions
     playerState.onGround = false;
 
-    for (let plat of platforms) {
-      // Player bounding box
+    for (let plat of levels[currentLevel]) {
       let playerRect = {
         x: playerState.x,
         y: playerState.y,
@@ -114,7 +163,6 @@
         height: playerState.height
       };
 
-      // Platform bounding box
       let platRect = {
         x: plat.x,
         y: plat.y,
@@ -122,13 +170,24 @@
         height: plat.height
       };
 
-      // Check collision from above
       if (isColliding(playerRect, platRect)) {
-        // Simple fix: if falling, put player on top of platform
-        if (playerState.velY > 0 && playerState.y + playerState.height <= plat.y + playerState.velY) {
+        // Check if player is falling and above platform
+        if (playerState.velY > 0 && (playerState.y + playerState.height) <= (plat.y + playerState.velY)) {
           playerState.y = plat.y - playerState.height;
           playerState.velY = 0;
           playerState.onGround = true;
+        } else if (playerState.velY < 0 && playerState.y >= plat.y + plat.height) {
+          // Head bump - prevent player from going through platform top from below
+          playerState.y = plat.y + plat.height;
+          playerState.velY = 0;
+        } else {
+          // Side collisions: prevent moving through platforms horizontally
+          if (playerState.velX > 0) {
+            playerState.x = plat.x - playerState.width;
+          } else if (playerState.velX < 0) {
+            playerState.x = plat.x + plat.width;
+          }
+          playerState.velX = 0;
         }
       }
     }
@@ -140,9 +199,9 @@
       playerState.onGround = true;
     }
 
-    // Apply to player div
+    // Apply position to player element
     player.style.left = playerState.x + 'px';
-    player.style.bottom = playerState.y + 'px';
+    player.style.top = playerState.y + 'px';
   }
 
   function gameLoop() {
@@ -150,13 +209,30 @@
     requestAnimationFrame(gameLoop);
   }
 
+  // Switch levels with number keys 1, 2, 3
   window.addEventListener('keydown', e => {
     keys[e.key] = true;
+    if (e.key >= '1' && e.key <= '3') {
+      currentLevel = parseInt(e.key) - 1;
+      levelIndicator.textContent = `Level: ${e.key} (Press 1,2,3 to switch)`;
+      createPlatforms(levels[currentLevel]);
+      // Reset player position
+      playerState.x = 100;
+      playerState.y = 0;
+      playerState.velX = 0;
+      playerState.velY = 0;
+      playerState.onGround = false;
+    }
   });
 
   window.addEventListener('keyup', e => {
     keys[e.key] = false;
   });
+
+  // Initialize
+  createPlatforms(levels[currentLevel]);
+  player.style.top = playerState.y + 'px';
+  player.style.left = playerState.x + 'px';
 
   gameLoop();
 })();
